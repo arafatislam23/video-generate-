@@ -43,6 +43,65 @@ export const VOICE_EMOTIONS: {
   { value: 'Curious', label: 'Curious', desc: 'Intriguing, wonder & questioning', icon: '🤔', badgeClass: 'bg-sky-500/20 text-sky-300 border-sky-500/30' },
 ];
 
+export type MotionPreset =
+  | 'smooth-ease'
+  | 'bouncy-elastic'
+  | 'aggressive-linear'
+  | 'kinetic-snap'
+  | 'cinematic-float';
+
+export interface MotionPresetConfig {
+  value: MotionPreset;
+  label: string;
+  desc: string;
+  physics: string;
+  icon: string;
+  badgeClass: string;
+}
+
+export const MOTION_PRESETS: MotionPresetConfig[] = [
+  {
+    value: 'smooth-ease',
+    label: 'Smooth Ease',
+    desc: 'Silky cubic deceleration with gentle 3D harmonic float',
+    physics: 'Cubic Ease-Out (Harmonic Drift)',
+    icon: '🌊',
+    badgeClass: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  },
+  {
+    value: 'bouncy-elastic',
+    label: 'Bouncy Elastic',
+    desc: 'Spring physics with energetic overshoot & playful wobble',
+    physics: 'Spring Overshoot (Elastic Bounce)',
+    icon: '⚡',
+    badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  },
+  {
+    value: 'aggressive-linear',
+    label: 'Aggressive Linear',
+    desc: 'Ultra-fast snap, mechanical precision & zero lag punch',
+    physics: 'Linear Cutoff (Direct Punch)',
+    icon: '🎯',
+    badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+  },
+  {
+    value: 'kinetic-snap',
+    label: 'Kinetic Snap',
+    desc: 'High-velocity entry with magnetic instant lock-in',
+    physics: 'Exponential Ease (Magnetic Lock)',
+    icon: '🧲',
+    badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  },
+  {
+    value: 'cinematic-float',
+    label: 'Cinematic Float',
+    desc: 'Slow, graceful orbital drift with deep atmospheric ease',
+    physics: 'Sine Ease-In-Out (Orbital Glide)',
+    icon: '🎬',
+    badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  },
+];
+
 export interface MotionScene {
   id: string;
   narration: string;
@@ -56,6 +115,7 @@ export interface MotionScene {
   cameraAngle: CameraAngle;
   voiceAudioUrl?: string;
   voiceEmotion?: VoiceEmotion;
+  motionPreset?: MotionPreset;
 }
 
 export interface ProjectTemplate {
@@ -84,6 +144,7 @@ export const INITIAL_SCENES: MotionScene[] = [
     cameraAngle: 'isometric-tilt',
     voiceAudioUrl: '/audio/scene-1.wav',
     voiceEmotion: 'Curious',
+    motionPreset: 'bouncy-elastic',
   },
   {
     id: 'scene-2',
@@ -98,6 +159,7 @@ export const INITIAL_SCENES: MotionScene[] = [
     cameraAngle: 'deep-perspective',
     voiceAudioUrl: '/audio/scene-2.wav',
     voiceEmotion: 'Inspiring',
+    motionPreset: 'smooth-ease',
   },
   {
     id: 'scene-3',
@@ -112,6 +174,7 @@ export const INITIAL_SCENES: MotionScene[] = [
     cameraAngle: 'front-cinematic',
     voiceAudioUrl: '/audio/scene-3.wav',
     voiceEmotion: 'Serious',
+    motionPreset: 'aggressive-linear',
   },
   {
     id: 'scene-4',
@@ -126,6 +189,7 @@ export const INITIAL_SCENES: MotionScene[] = [
     cameraAngle: 'dynamic-pan',
     voiceAudioUrl: '/audio/scene-4.wav',
     voiceEmotion: 'Happy',
+    motionPreset: 'smooth-ease',
   },
   {
     id: 'scene-5',
@@ -140,6 +204,7 @@ export const INITIAL_SCENES: MotionScene[] = [
     cameraAngle: 'isometric-tilt',
     voiceAudioUrl: '/audio/scene-5.wav',
     voiceEmotion: 'Energetic',
+    motionPreset: 'bouncy-elastic',
   },
   {
     id: 'scene-6',
@@ -154,6 +219,7 @@ export const INITIAL_SCENES: MotionScene[] = [
     cameraAngle: 'front-cinematic',
     voiceAudioUrl: '/audio/scene-6.wav',
     voiceEmotion: 'Inspiring',
+    motionPreset: 'kinetic-snap',
   },
   {
     id: 'scene-7',
@@ -168,6 +234,7 @@ export const INITIAL_SCENES: MotionScene[] = [
     cameraAngle: 'deep-perspective',
     voiceAudioUrl: '/audio/scene-7.wav',
     voiceEmotion: 'Energetic',
+    motionPreset: 'cinematic-float',
   },
 ];
 

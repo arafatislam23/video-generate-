@@ -23,6 +23,14 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  X,
+  Film,
+  Monitor,
+  Smartphone,
+  Square,
+  SlidersHorizontal,
+  Activity,
+  Zap,
 } from 'lucide-react';
 import {
   INITIAL_BENGALI_SCRIPT,
@@ -35,6 +43,8 @@ import {
   CameraAngle,
   VoiceEmotion,
   VOICE_EMOTIONS,
+  MotionPreset,
+  MOTION_PRESETS,
   createProceduralSoundtrackWav,
 } from './data/defaultProject';
 import { MotionStage } from './components/MotionStage';
@@ -42,6 +52,7 @@ import {
   renderMixedMasterAudioBuffer,
   audioBufferToWavBlob,
 } from './utils/mediaExporter';
+import { triggerLiveSfx } from './utils/sfxEngine';
 
 type WorkspaceTab = 'script' | 'editor' | 'voiceover' | 'music' | 'templates';
 
@@ -114,6 +125,11 @@ export default function App() {
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
   const [showSubtitles, setShowSubtitles] = useState<boolean>(true);
   const [show3DGrid, setShow3DGrid] = useState<boolean>(true);
+  const [showSideFx, setShowSideFx] = useState<boolean>(true);
+
+  // Side Effects & Sound Effects (SFX) State - Gentle and subtle by default
+  const [sfxVolume, setSfxVolume] = useState<number>(0.38);
+  const [sfxMuted, setSfxMuted] = useState<boolean>(false);
 
   // Voiceover State
   const [selectedVoice, setSelectedVoice] = useState<string>('Puck');
@@ -126,7 +142,7 @@ export default function App() {
   const [voiceMuted, setVoiceMuted] = useState<boolean>(false);
   const [voiceVolume, setVoiceVolume] = useState<number>(1.0);
 
-  // Music Generation State (Lyria 3)
+  // Music Generation State (Lyria 3) - Optional and MUTED by default
   const [musicPrompt, setMusicPrompt] = useState<string>(
     LYRIA_PRESET_PROMPTS[0].prompt
   );
@@ -139,17 +155,25 @@ export default function App() {
     'Modern Motion Synth (120 BPM)'
   );
   const [musicLyrics, setMusicLyrics] = useState<string>('');
-  const [musicMuted, setMusicMuted] = useState<boolean>(false);
-  const [musicVolume, setMusicVolume] = useState<number>(0.35);
+  const [musicMuted, setMusicMuted] = useState<boolean>(true);
+  const [musicVolume, setMusicVolume] = useState<number>(0.30);
 
   // Export & Notification State
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportProgress, setExportProgress] = useState<number>(0);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+  const [exportIncludeWavBundle, setExportIncludeWavBundle] = useState<boolean>(false);
   const [statusBanner, setStatusBanner] = useState<{
     type: 'info' | 'success' | 'error';
     message: string;
   } | null>(null);
   const [templateSearch, setTemplateSearch] = useState<string>('');
+
+  const handleOpenExportModal = (includeWav = false) => {
+    setIsPlaying(false);
+    setExportIncludeWavBundle(includeWav);
+    setShowExportModal(true);
+  };
 
   // Refs for Canvas & Audio Elements
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -241,12 +265,12 @@ export default function App() {
   const stageSceneIndex = isPlaying ? activePlaybackState.index : selectedSceneIndex;
   const stageScene = scenes[stageSceneIndex] || scenes[0];
 
-  // Sync Background Music Element with `isPlaying`
+  // Sync Background Music Element with `isPlaying` (Optional & off by default)
   useEffect(() => {
     const musicEl = musicAudioRef.current;
     if (!musicEl || !musicAudioUrl) return;
     musicEl.volume = musicMuted ? 0 : musicVolume;
-    if (isPlaying && !isExporting) {
+    if (isPlaying && !isExporting && !musicMuted && musicVolume > 0) {
       musicEl.play().catch(() => {});
     } else {
       musicEl.pause();
@@ -707,6 +731,8 @@ export default function App() {
         musicVolume,
         voiceMuted,
         musicMuted,
+        sfxVolume,
+        sfxMuted,
       });
       const wavBlob = audioBufferToWavBlob(mixedBuffer);
       const wavUrl = URL.createObjectURL(wavBlob);
@@ -803,7 +829,7 @@ export default function App() {
     let liveAudioCtx: AudioContext | null = null;
 
     try {
-      // Step 2: Render sample-accurate Master AudioBuffer (Voiceover + Background Music)
+      // Step 2: Render sample-accurate Master AudioBuffer (Voiceover + Background Music + Synced SFX)
       const masterAudioBuffer = await renderMixedMasterAudioBuffer({
         scenes: exportScenes,
         sceneTimings: exportTimings,
@@ -812,6 +838,8 @@ export default function App() {
         musicVolume,
         voiceMuted,
         musicMuted,
+        sfxVolume,
+        sfxMuted,
       });
 
       // Step 3: Route Master AudioBuffer into a live MediaStreamAudioDestinationNode
@@ -1012,9 +1040,9 @@ export default function App() {
         {/* Zone 3: 1 Primary Action Button */}
         <div className="flex items-center gap-3 shrink-0">
           <button
-            onClick={() => handleExportVideo(false)}
+            onClick={() => handleOpenExportModal(false)}
             disabled={isExporting}
-            className="px-4 py-2 text-xs font-semibold text-slate-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer"
+            className="px-4 py-2 text-xs font-semibold text-slate-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer shadow-sm shadow-amber-500/20"
           >
             {isExporting ? (
               <>
@@ -1386,6 +1414,145 @@ export default function App() {
                         </option>
                       ))}
                     </select>
+                  </div>
+                </div>
+
+                {/* Motion Preset Library */}
+                <div className="space-y-2.5 p-3.5 rounded-xl bg-[#0B0F17] border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5 text-amber-400" />
+                      <span>মোশন প্রিসেট লাইব্রেরি (Motion Preset Library)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetPreset = currentScene.motionPreset || 'smooth-ease';
+                        setScenes((prev) =>
+                          prev.map((s) => ({ ...s, motionPreset: targetPreset }))
+                        );
+                        setStatusBanner({
+                          type: 'success',
+                          message: `সবগুলো সিনের জন্য '${MOTION_PRESETS.find((p) => p.value === targetPreset)?.label}' মোশন প্রিসেট যুক্ত করা হয়েছে!`,
+                        });
+                      }}
+                      className="text-[11px] text-amber-400 hover:text-amber-300 font-medium cursor-pointer flex items-center gap-1 transition-colors"
+                      title="Apply this motion preset to all scenes"
+                    >
+                      <Zap className="w-3 h-3 text-amber-400" />
+                      <span>Apply to all</span>
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    সিনের 2D/3D ভিজ্যুয়াল, ফ্লোটিং কার্ড এবং টাইপোগ্রাফির জন্য প্রফেশনাল মুভমেন্ট প্রোফাইল নির্বাচন করুন:
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {MOTION_PRESETS.map((preset) => {
+                      const isSelected =
+                        (currentScene.motionPreset || 'smooth-ease') === preset.value;
+                      return (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          onClick={() =>
+                            updateSelectedScene({ motionPreset: preset.value })
+                          }
+                          className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between relative group ${
+                            isSelected
+                              ? 'bg-amber-500/15 border-amber-500 text-white shadow-xs'
+                              : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                                <span>{preset.icon}</span>
+                                <span>{preset.label}</span>
+                              </span>
+                              {isSelected ? (
+                                <span className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shrink-0">
+                                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-mono text-slate-500 group-hover:text-slate-400">
+                                  Select
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 leading-snug">
+                              {preset.desc}
+                            </p>
+                          </div>
+
+                          <div className="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between">
+                            <span
+                              className={`text-[9px] px-1.5 py-0.5 rounded-sm border font-mono ${preset.badgeClass}`}
+                            >
+                              {preset.physics}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Animation & Synced Side FX Live Control */}
+                  <div className="mt-2.5 p-3 rounded-lg bg-slate-900/80 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Zap className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="text-xs font-semibold text-white">
+                          অ্যানিমেশন-সিঙ্কড সাইড ইফেক্টস (Synced Side FX)
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        {showSideFx ? 'Active' : 'Disabled'}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      ভিডিওর প্রতিটি সিনের 2D/3D মোশন, ট্রানজিশন এবং ফ্লোটিং কার্ডের সাথে স্বয়ংক্রিয়ভাবে অডিও-ভিজ্যুয়াল সাইড ইফেক্ট (Whoosh, Pop, Impact, Lateral Aura ও HUD Brackets) সক্রিয় থাকে।
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => triggerLiveSfx('whoosh', sfxVolume)}
+                        className="px-2 py-1 rounded text-[11px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1 cursor-pointer"
+                        title="Play Transition Whoosh Sound"
+                      >
+                        <span>🔊 Whoosh</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => triggerLiveSfx('pop', sfxVolume)}
+                        className="px-2 py-1 rounded text-[11px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1 cursor-pointer"
+                        title="Play Card Pop Sound"
+                      >
+                        <span>🔊 Card Pop</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => triggerLiveSfx('impact', sfxVolume)}
+                        className="px-2 py-1 rounded text-[11px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1 cursor-pointer"
+                        title="Play Kinetic Impact Sound"
+                      >
+                        <span>🔊 Impact</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowSideFx((v) => !v)}
+                        className={`ml-auto text-[11px] font-medium px-2 py-1 rounded border transition-colors cursor-pointer ${
+                          showSideFx
+                            ? 'bg-amber-500/15 border-amber-500/50 text-amber-300'
+                            : 'bg-slate-800 border-slate-700 text-slate-400'
+                        }`}
+                      >
+                        {showSideFx ? 'ভিজ্যুয়াল ইফেক্ট: চালু' : 'ভিজ্যুয়াল ইফেক্ট: বন্ধ'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1949,9 +2116,24 @@ export default function App() {
                     ? 'bg-slate-800 border-slate-700 text-amber-400'
                     : 'bg-[#0B0F17] border-slate-800 text-slate-400'
                 }`}
+                title="3D Perspective Grid Toggle"
               >
                 <Grid className="w-3.5 h-3.5" />
                 <span>3D Grid</span>
+              </button>
+
+              {/* Side Effects Toggle (Aura, Edge Particles, HUD Brackets, Shockwaves) */}
+              <button
+                onClick={() => setShowSideFx((v) => !v)}
+                className={`px-2.5 py-1.5 rounded-lg border text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  showSideFx
+                    ? 'bg-amber-500/15 border-amber-500/50 text-amber-300 font-medium'
+                    : 'bg-[#0B0F17] border-slate-800 text-slate-400'
+                }`}
+                title="ভিজ্যুয়াল সাইড ইফেক্টস (Side Aura, Edge Embers, Tech HUD Brackets, Transition Ripple)"
+              >
+                <Zap className={`w-3.5 h-3.5 ${showSideFx ? 'text-amber-400 fill-amber-400/20' : ''}`} />
+                <span>সাইড ইফেক্ট (Side FX)</span>
               </button>
             </div>
           </div>
@@ -1968,9 +2150,15 @@ export default function App() {
                 aspectRatio={aspectRatio}
                 showSubtitles={showSubtitles}
                 show3DGrid={show3DGrid}
+                showSideFx={showSideFx}
                 canvasRef={canvasRef}
                 onSceneChange={handleStageSceneChange}
                 onTimeSync={(t) => setCurrentTime(t)}
+                onSfxTrigger={(type) => {
+                  if (!sfxMuted && isPlaying && !isExporting) {
+                    triggerLiveSfx(type, sfxVolume);
+                  }
+                }}
               />
             )}
           </div>
@@ -2080,38 +2268,78 @@ export default function App() {
                 )}
               </div>
 
-              {/* Music Control with clear ON/OFF state */}
+              {/* Music Control with clear ON/OFF state (Optional & Off by default) */}
               <button
                 onClick={() => setMusicMuted((m) => !m)}
                 className={`px-2.5 py-1.5 rounded-lg border text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   !musicMuted
                     ? 'bg-[#0B0F17] border-slate-800 text-slate-200'
-                    : 'bg-rose-950/50 border-rose-800/60 text-rose-300'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-400'
                 }`}
-                title={musicMuted ? 'মিউজিক চালু করুন' : 'মিউজিক বন্ধ করুন'}
+                title={musicMuted ? 'মিউজিক চালু করুন (প্রয়োজন হলে যুক্ত করুন)' : 'মিউজিক বন্ধ করুন'}
               >
                 {musicMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
-                <span>{musicMuted ? 'মিউজিক: বন্ধ' : 'মিউজিক: চালু'}</span>
+                <span>{musicMuted ? 'মিউজিক: বন্ধ (ঐচ্ছিক)' : 'মিউজিক: চালু'}</span>
               </button>
+
+              {/* SFX / Sound Effects Control with clear ON/OFF state & volume */}
+              <div className="flex items-center gap-1.5 bg-[#0B0F17] p-1 rounded-lg border border-slate-800">
+                <button
+                  onClick={() => {
+                    const nextMuted = !sfxMuted;
+                    setSfxMuted(nextMuted);
+                    if (!nextMuted) {
+                      triggerLiveSfx('whoosh', sfxVolume);
+                    }
+                  }}
+                  className={`px-2.5 py-1 rounded-md text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    !sfxMuted
+                      ? 'bg-purple-500/20 text-purple-300 font-medium'
+                      : 'bg-rose-950/60 text-rose-300 font-medium'
+                  }`}
+                  title={sfxMuted ? 'সাইড ইফেক্ট/SFX চালু করুন' : 'সাইড ইফেক্ট/SFX মিউট করুন'}
+                >
+                  <Zap className={`w-3.5 h-3.5 ${!sfxMuted ? 'text-purple-400 fill-purple-400/30' : ''}`} />
+                  <span>{sfxMuted ? 'SFX: বন্ধ' : 'SFX: চালু'}</span>
+                </button>
+
+                {!sfxMuted && (
+                  <div className="flex items-center gap-1 pr-1.5">
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={sfxVolume}
+                      onChange={(e) => setSfxVolume(parseFloat(e.target.value))}
+                      className="w-14 accent-purple-500 cursor-pointer h-1.5"
+                      title={`SFX ভলিউম: ${Math.round(sfxVolume * 100)}%`}
+                    />
+                    <span className="text-[10px] font-mono text-slate-400 tabular-nums">
+                      {Math.round(sfxVolume * 100)}%
+                    </span>
+                  </div>
+                )}
+              </div>
 
               <button
                 onClick={() => handleDownloadMasterAudioWav()}
                 disabled={isExporting}
                 className="px-2.5 py-1.5 rounded-lg bg-[#0B0F17] hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-                title="Download Mixed Voiceover + Music Audio (.wav)"
+                title="Download Mixed Voiceover + Music + SFX Audio (.wav)"
               >
                 <Download className="w-3.5 h-3.5 text-emerald-400" />
                 <span>অডিও (.wav)</span>
               </button>
 
               <button
-                onClick={() => handleExportVideo(true)}
+                onClick={() => handleOpenExportModal(true)}
                 disabled={isExporting}
                 className="px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-300 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-                title="Download Video+Audio (.webm) AND Master Audio (.wav) together"
+                title="Preview layout & audio mix before exporting video (.webm) and audio (.wav)"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>ভিডিও + অডিও একসাথে ডাউনলোড</span>
+                <span>ভিডিও + অডিও এক্সপোর্ট প্রিভিউ</span>
               </button>
             </div>
           </div>
@@ -2202,6 +2430,399 @@ export default function App() {
           </div>
         </main>
       </div>
+
+      {/* EXPORT PREVIEW & AUDIO MIX SETTINGS MODAL */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-lg bg-[#0E131F] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-slate-200 max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F17]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Film className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white">
+                    Export Preview & Mix Settings
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    ভিডিও লেআউট ও অডিও মিক্স সেটিংস প্রিভিউ
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="w-7 h-7 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body - Scrollable */}
+            <div className="p-5 space-y-4 overflow-y-auto">
+              {/* Section 1: Video Layout & Frame Dimensions */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    <Monitor className="w-3.5 h-3.5 text-amber-400" />
+                    <span>ভিডিও লেআউট ও ফ্রেম (Layout & Aspect Ratio)</span>
+                  </span>
+                  <span className="text-[11px] font-mono text-amber-400">
+                    {aspectRatio === '16:9'
+                      ? '1920 × 1080 (Landscape)'
+                      : aspectRatio === '9:16'
+                      ? '1080 × 1920 (Vertical Shorts/Reels)'
+                      : '1080 × 1080 (Square)'}
+                  </span>
+                </div>
+
+                {/* Aspect Ratio Selector Cards */}
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAspectRatio('16:9')}
+                    className={`p-2.5 rounded-lg border text-xs flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      aspectRatio === '16:9'
+                        ? 'bg-amber-500/15 border-amber-500 text-white font-medium shadow-xs'
+                        : 'bg-[#0B0F17] border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <Monitor className="w-4 h-4" />
+                    <span className="font-medium">16:9 Landscape</span>
+                    <span className="text-[10px] text-slate-400">YouTube / Promo</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAspectRatio('9:16')}
+                    className={`p-2.5 rounded-lg border text-xs flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      aspectRatio === '9:16'
+                        ? 'bg-amber-500/15 border-amber-500 text-white font-medium shadow-xs'
+                        : 'bg-[#0B0F17] border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    <span className="font-medium">9:16 Vertical</span>
+                    <span className="text-[10px] text-slate-400">Reels / Shorts</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAspectRatio('1:1')}
+                    className={`p-2.5 rounded-lg border text-xs flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      aspectRatio === '1:1'
+                        ? 'bg-amber-500/15 border-amber-500 text-white font-medium shadow-xs'
+                        : 'bg-[#0B0F17] border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <Square className="w-4 h-4" />
+                    <span className="font-medium">1:1 Square</span>
+                    <span className="text-[10px] text-slate-400">Social Feed</span>
+                  </button>
+                </div>
+
+                {/* Visual Overlays Toggles */}
+                <div className="grid grid-cols-2 gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowSubtitles((s) => !s)}
+                    className={`px-3 py-2 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                      showSubtitles
+                        ? 'bg-emerald-950/40 border-emerald-700/60 text-emerald-200'
+                        : 'bg-[#0B0F17] border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Captions className="w-3.5 h-3.5" />
+                      <span>সাবটাইটেল (Subtitles)</span>
+                    </span>
+                    <span className="text-[10px] font-mono font-bold">
+                      {showSubtitles ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShow3DGrid((g) => !g)}
+                    className={`px-3 py-2 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                      show3DGrid
+                        ? 'bg-emerald-950/40 border-emerald-700/60 text-emerald-200'
+                        : 'bg-[#0B0F17] border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Grid className="w-3.5 h-3.5" />
+                      <span>3D গ্রিড (Perspective)</span>
+                    </span>
+                    <span className="text-[10px] font-mono font-bold">
+                      {show3DGrid ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Video Scenes Mini Storyboard Preview Strip */}
+                <div className="p-2.5 rounded-lg bg-[#0B0F17] border border-slate-800/80 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>স্টোরিবোর্ড লেআউট ({scenes.length}টি দৃশ্য)</span>
+                    <span className="font-mono text-amber-300 tabular-nums">
+                      {totalDuration.toFixed(1)}s Runtime · 60 FPS
+                    </span>
+                  </div>
+                  <div className="flex gap-1.5 overflow-x-auto py-1">
+                    {scenes.map((sc, i) => (
+                      <div
+                        key={sc.id}
+                        className="px-2 py-1.5 rounded-md bg-slate-900 border border-slate-800 flex items-center gap-1.5 shrink-0 text-[11px]"
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: sc.accentColor }}
+                        />
+                        <span className="font-medium text-white truncate max-w-[90px]">
+                          #{i + 1} {sc.headline}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {sc.duration.toFixed(1)}s
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Audio Mix Settings (Master Channels) */}
+              <div className="space-y-2.5 pt-3 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+                    <span>অডিও মিক্সিং সেটিংস (Audio Mix Settings)</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400">2-Track Master Balance</span>
+                </div>
+
+                {/* Voiceover Channel */}
+                <div className="p-3 rounded-lg bg-[#0B0F17] border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Mic className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-xs font-medium text-white">ভয়েসওভার ট্র্যাক (Voiceover)</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-amber-500/20 text-amber-300">
+                        {selectedVoice}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setVoiceMuted((m) => !m)}
+                      className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                        !voiceMuted
+                          ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/60'
+                          : 'bg-rose-950/70 text-rose-300 border border-rose-800/60'
+                      }`}
+                    >
+                      {voiceMuted ? 'Muted (বন্ধ)' : 'Active (চালু)'}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Volume2 className="w-3 h-3 text-slate-400 shrink-0" />
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      disabled={voiceMuted}
+                      value={voiceMuted ? 0 : voiceVolume}
+                      onChange={(e) => setVoiceVolume(parseFloat(e.target.value))}
+                      className="flex-1 accent-amber-500 cursor-pointer disabled:opacity-40"
+                    />
+                    <span className="text-xs font-mono text-slate-300 tabular-nums w-10 text-right">
+                      {voiceMuted ? '0%' : `${Math.round(voiceVolume * 100)}%`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Background Music Channel (Optional - off by default) */}
+                <div className="p-3 rounded-lg bg-[#0B0F17] border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Music className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="text-xs font-medium text-white truncate">
+                        ব্যাকগ্রাউন্ড মিউজিক (ঐচ্ছিক / Optional)
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-emerald-500/20 text-emerald-300 truncate max-w-[120px]">
+                        {musicTrackTitle}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMusicMuted((m) => !m)}
+                      className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer shrink-0 ${
+                        !musicMuted
+                          ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/60'
+                          : 'bg-slate-900 text-slate-400 border border-slate-800'
+                      }`}
+                    >
+                      {musicMuted ? 'Muted (বন্ধ / ঐচ্ছিক)' : 'Active (চালু)'}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Volume2 className="w-3 h-3 text-slate-400 shrink-0" />
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      disabled={musicMuted}
+                      value={musicMuted ? 0 : musicVolume}
+                      onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                      className="flex-1 accent-emerald-500 cursor-pointer disabled:opacity-40"
+                    />
+                    <span className="text-xs font-mono text-slate-300 tabular-nums w-10 text-right">
+                      {musicMuted ? '0%' : `${Math.round(musicVolume * 100)}%`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Animation-Synced SFX / Side Effects Channel */}
+                <div className="p-3 rounded-lg bg-[#0B0F17] border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Zap className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <span className="text-xs font-medium text-white truncate">
+                        মোশন সাইড ইফেক্ট (Animation SFX: Whoosh, Pop, Impact)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => triggerLiveSfx('whoosh', sfxVolume)}
+                        className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 cursor-pointer"
+                        title="Test Whoosh Sound Effect"
+                      >
+                        Whoosh
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => triggerLiveSfx('pop', sfxVolume)}
+                        className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 cursor-pointer"
+                        title="Test Pop Sound Effect"
+                      >
+                        Pop
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSfxMuted((m) => !m)}
+                        className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer shrink-0 ${
+                          !sfxMuted
+                            ? 'bg-purple-950/70 text-purple-300 border border-purple-800/60'
+                            : 'bg-rose-950/70 text-rose-300 border border-rose-800/60'
+                        }`}
+                      >
+                        {sfxMuted ? 'Muted (বন্ধ)' : 'Active (চালু)'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Volume2 className="w-3 h-3 text-slate-400 shrink-0" />
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      disabled={sfxMuted}
+                      value={sfxMuted ? 0 : sfxVolume}
+                      onChange={(e) => setSfxVolume(parseFloat(e.target.value))}
+                      className="flex-1 accent-purple-500 cursor-pointer disabled:opacity-40"
+                    />
+                    <span className="text-xs font-mono text-slate-300 tabular-nums w-10 text-right">
+                      {sfxMuted ? '0%' : `${Math.round(sfxVolume * 100)}%`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Realtime Relative Audio Mix Balance Bar (Voice + Music + SFX) */}
+                <div className="p-2.5 rounded-lg bg-[#0B0F17] border border-slate-800/80 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="text-amber-400 font-medium">ভয়েস: {voiceMuted ? 0 : Math.round(voiceVolume * 100)}%</span>
+                    <span className="text-emerald-400 font-medium">মিউজিক: {musicMuted ? 0 : Math.round(musicVolume * 100)}%</span>
+                    <span className="text-purple-400 font-medium">SFX: {sfxMuted ? 0 : Math.round(sfxVolume * 100)}%</span>
+                  </div>
+                  {(() => {
+                    const effVoice = voiceMuted ? 0 : voiceVolume;
+                    const effMusic = musicMuted ? 0 : musicVolume;
+                    const effSfx = sfxMuted ? 0 : sfxVolume;
+                    const totalSum = effVoice + effMusic + effSfx || 1;
+                    return (
+                      <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden flex">
+                        <div
+                          className="h-full bg-amber-500 transition-all duration-150"
+                          style={{ width: `${(effVoice / totalSum) * 100}%` }}
+                        />
+                        <div
+                          className="h-full bg-emerald-500 transition-all duration-150"
+                          style={{ width: `${(effMusic / totalSum) * 100}%` }}
+                        />
+                        <div
+                          className="h-full bg-purple-500 transition-all duration-150"
+                          style={{ width: `${(effSfx / totalSum) * 100}%` }}
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Section 3: Package Export Bundle Checkbox */}
+              <div className="pt-2 border-t border-slate-800">
+                <label className="flex items-start gap-2.5 p-3 rounded-lg bg-[#0B0F17] border border-slate-800 hover:border-slate-700 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={exportIncludeWavBundle}
+                    onChange={(e) => setExportIncludeWavBundle(e.target.checked)}
+                    className="mt-0.5 accent-amber-500 w-4 h-4 rounded cursor-pointer"
+                  />
+                  <div>
+                    <div className="text-xs font-medium text-white">
+                      ভিডিওর সাথে আলাদা মাস্টার অডিও ফাইল (.wav) ডাউনলোড করুন
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Download standalone 24kHz master audio soundtrack (.wav) alongside the video file (.webm)
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 border-t border-slate-800 bg-[#0B0F17] flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+              >
+                Cancel / বাতিল
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExportModal(false);
+                  handleExportVideo(exportIncludeWavBundle);
+                }}
+                disabled={isExporting}
+                className="px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer shadow-lg shadow-amber-500/20"
+              >
+                <Download className="w-4 h-4" />
+                <span>Start Export (এক্সপোর্ট শুরু করুন)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { MotionScene } from '../data/defaultProject';
+import { renderSceneSfxIntoBuffer } from './sfxEngine';
 
 export interface SceneTiming {
   start: number;
@@ -47,8 +48,8 @@ export function audioBufferToWavBlob(audioBuffer: AudioBuffer): Blob {
 }
 
 /**
- * Renders a complete mixed AudioBuffer combining all scene voiceovers (at their exact start times)
- * and the background music track using OfflineAudioContext.
+ * Renders a complete mixed AudioBuffer combining all scene voiceovers (at their exact start times),
+ * procedural sound effects (synced with animation events), and background music track using OfflineAudioContext.
  */
 export async function renderMixedMasterAudioBuffer(params: {
   scenes: MotionScene[];
@@ -58,6 +59,8 @@ export async function renderMixedMasterAudioBuffer(params: {
   musicVolume: number;
   voiceMuted: boolean;
   musicMuted: boolean;
+  sfxVolume?: number;
+  sfxMuted?: boolean;
 }): Promise<AudioBuffer> {
   const {
     scenes,
@@ -67,6 +70,8 @@ export async function renderMixedMasterAudioBuffer(params: {
     musicVolume,
     voiceMuted,
     musicMuted,
+    sfxVolume = 0.7,
+    sfxMuted = false,
   } = params;
 
   const sampleRate = 24000;
@@ -131,6 +136,15 @@ export async function renderMixedMasterAudioBuffer(params: {
       } catch {
         // Ignore individual decode failure
       }
+    }
+  }
+
+  // 3. Mix Motion-Synced Procedural Sound Effects (Whooshes, Pops, Impacts, Chimes)
+  if (!sfxMuted && sfxVolume > 0) {
+    try {
+      renderSceneSfxIntoBuffer(offlineCtx, scenes, sceneTimings, sfxVolume);
+    } catch {
+      // Ignore if sfx synthesis encounters unexpected issue
     }
   }
 
