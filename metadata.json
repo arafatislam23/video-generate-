@@ -1,0 +1,6 @@
+{
+  "name": "Kinetix Studio — AI Motion Graphics & Audio Engine",
+  "description": "Transform scripts in Bengali or English into synchronized 2D and 3D motion graphics videos with AI voiceovers, Lyria background music, and live timeline editing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
